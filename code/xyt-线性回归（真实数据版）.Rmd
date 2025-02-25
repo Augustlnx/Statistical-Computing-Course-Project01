@@ -1,0 +1,1108 @@
+---
+title: "线性回归3"
+author: "谢奕童"
+date: "2024-12-11"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r }
+data <- read.csv("Pressure_Drop_Data.csv")
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+LeastSquares <- lm(y ~ x1 + x2 + x3 + x4, data =data)
+ols_result=coef(LeastSquares)
+
+set.seed(42)
+B=n
+K=1000
+# 定义Bootstrap方法来估计线性回归模型参数
+ bootstrap_regression <- function(data, sample_size) {
+   bootstrap_estimates <- matrix(NA, nrow = B, ncol = 5)
+   for(i in 1:B){
+       m=sample(seq(1,sample_size),sample_size,replace=T)
+   Bootstrap_data=data[m,]#有放回地抽取样本
+   Bootstrap_model=lm(y ~ x1 + x2 + x3 + x4, data = Bootstrap_data)#基于新样本的估计
+   bootstrap_estimates[i, ] <- coef(Bootstrap_model)
+ }
+   Bootstrap_result<- colMeans(bootstrap_estimates,na.rm=TRUE) 
+   
+   return(Bootstrap_result)
+ }
+ 
+ # 定义Jackknife方法来估计线性回归模型参数
+ jackknife_regression <- function(data, sample_size) {
+   Jackknife_estimates <- matrix(NA, nrow = sample_size, ncol = 5)
+   for(i in 1:sample_size){
+   Jack_data=data[-i,]
+   Jackknife_model <- lm(y ~ x1 + x2 + x3 + x4, data = Jack_data)#基于新样本的估计
+   Jackknife_estimates[i, ] <- coef(Jackknife_model)
+ }
+  Jackknife_result<- colMeans(Jackknife_estimates,na.rm=TRUE)
+   
+   return(Jackknife_result)
+ }
+ # 计算Bias的函数
+ calculate_bias <- function(estimates, ols_result) {
+   bias <- estimates - ols_result
+   return(bias)
+ }
+bias_data <- data.frame()
+results<-data.frame()
+
+```
+
+#样本量为20
+```{r}
+n=20
+boot1=c()
+boot2=c()
+boot3=c()
+boot4=c()
+boot5=c()
+jack1=c()
+jack2=c()
+jack3=c()
+jack4=c()
+jack5=c()
+bias_boot1 =c()
+bias_boot2<- c()
+bias_boot3 <- c()
+bias_boot4 <- c()
+bias_boot5=c()
+bias_jack1 <-c()
+bias_jack2 <- c()
+bias_jack3 <- c()
+bias_jack4 <- c()
+bias_jack5 <- c()
+mse_boot11<-c()
+mse_boot21<-c()
+mse_boot31<-c()
+mse_boot41<-c()
+mse_boot51<-c()
+mse_jack11<-c()
+mse_jack21<-c()
+mse_jack31<-c()
+mse_jack41<-c()
+mse_jack51<-c()
+for(j in 1:K){
+  # 从原始数据中随机抽取size个样本
+  sample_data <- data[sample(1:nrow(data), n, replace = TRUE), ]
+  
+  #Bootstrap的估计
+  boot_results <- bootstrap_regression(sample_data, n)
+  boot1[j]=boot_results[1]
+  boot2[j]=boot_results[2]
+  boot3[j]=boot_results[3]
+  boot4[j]=boot_results[4]
+  boot5[j]=boot_results[5]
+  mse_boot11[j]=(boot1[j]-ols_result[1])^2
+  mse_boot21[j]=(boot2[j]-ols_result[2])^2
+  mse_boot31[j]=(boot3[j]-ols_result[3])^2
+  mse_boot41[j]=(boot4[j]-ols_result[4])^2
+  mse_boot51[j]=(boot5[j]-ols_result[5])^2
+  #Jackknife的估计
+   jack_results <- jackknife_regression(sample_data, n)
+   jack1[j]=jack_results[1]
+   jack2[j]=jack_results[2]
+   jack3[j]=jack_results[3]
+   jack4[j]=jack_results[4]
+   jack5[j]=jack_results[5]
+   mse_jack11[j]=(jack1[j]-ols_result[1])^2
+   mse_jack21[j]=(jack2[j]-ols_result[2])^2
+   mse_jack31[j]=(jack3[j]-ols_result[3])^2
+   mse_jack41[j]=(jack4[j]-ols_result[4])^2
+   mse_jack51[j]=(jack5[j]-ols_result[5])^2
+}
+ #保存参数结果
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Bootstrap",Intercept =mean(boot1),X1=mean(boot2),X2=mean(boot3),X3=mean(boot4,na.rm=TRUE),X4=mean(boot5)))
+ 
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Jackknife",Intercept
+  =mean(jack1),X1=mean(jack2),X2=mean(jack3),X3=mean(jack4,na.rm=TRUE),X4=mean(jack5)))
+ 
+ #Bootstrap的BIAS
+  bias_boot1 <- calculate_bias(mean(boot1), ols_result[1] )
+  bias_boot2<- calculate_bias(mean(boot2), ols_result[2] )
+  bias_boot3 <- calculate_bias(mean(boot3), ols_result[3] )
+  bias_boot4 <- calculate_bias(mean(boot4,na.rm=TRUE), ols_result[4] )
+  bias_boot5 <- calculate_bias(mean(boot5), ols_result[5])
+  bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Bootstrap",  Intercept = bias_boot1, X1 = bias_boot2, X2 = bias_boot3, X3 = bias_boot4, X4 = bias_boot5)) 
+   #Jackknife的偏差
+   bias_jack1 <- calculate_bias(mean(jack1),  ols_result[1])
+   bias_jack2 <- calculate_bias(mean(jack2),  ols_result[2])
+   bias_jack3 <- calculate_bias(mean(jack3),  ols_result[3])
+   bias_jack4 <- calculate_bias(mean(jack4,na.rm=TRUE),  ols_result[4])
+   bias_jack5 <- calculate_bias(mean(jack5),  ols_result[5])
+   bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Jackknife", 
+                                            Intercept = bias_jack1, X1 = bias_jack2 ,X2 = bias_jack3, X3 = bias_jack4, X4 = bias_jack5))
+
+
+
+
+#密度图
+results1 <- data.frame(
+  Parameter = rep(c("Intercept"), each = K * 2),
+  Estimate = c(boot1, jack1),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K )
+)
+
+ggplot(results1, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[1], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of intercept,  n=20(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results2 <- data.frame(
+  Parameter = rep(c("x1"), each = K * 2),
+  Estimate = c(boot2, jack2),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+
+ggplot(results2, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[2], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x1,  n=20(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results3 <- data.frame(
+  Parameter = rep(c("x2"), each = K * 2),
+  Estimate = c(boot3, jack3),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+
+ggplot(results3, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[3], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x2,  n=20(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results4 <- data.frame(
+  Parameter = rep(c("x3"), each = K * 2),
+  Estimate = c(boot4, jack4),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+
+ggplot(results4, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[4], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x3,n=20(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results5 <- data.frame(
+  Parameter = rep(c("x4"), each = K * 2),
+  Estimate = c(boot5, jack5),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results5, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[5], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x4,  n=20(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+print(bias_data)
+```
+
+#样本量为30
+```{r}
+n=30
+boot1=c()
+boot2=c()
+boot3=c()
+boot4=c()
+boot5=c()
+jack1=c()
+jack2=c()
+jack3=c()
+jack4=c()
+jack5=c()
+bias_boot1 =c()
+bias_boot2<- c()
+bias_boot3 <- c()
+bias_boot4 <- c()
+bias_boot5=c()
+bias_jack1 <-c()
+bias_jack2 <- c()
+bias_jack3 <- c()
+bias_jack4 <- c()
+bias_jack5 <- c()
+mse_boot12<-c()
+mse_boot22<-c()
+mse_boot32<-c()
+mse_boot42<-c()
+mse_boot52<-c()
+mse_jack12<-c()
+mse_jack22<-c()
+mse_jack32<-c()
+mse_jack42<-c()
+mse_jack52<-c()
+for(j in 1:K){
+  # 从原始数据中随机抽取size个样本
+  sample_data <- data[sample(1:nrow(data), n, replace = TRUE), ]
+  
+  #Bootstrap的估计
+  boot_results <- bootstrap_regression(sample_data, n)
+  boot1[j]=boot_results[1]
+  boot2[j]=boot_results[2]
+  boot3[j]=boot_results[3]
+  boot4[j]=boot_results[4]
+  boot5[j]=boot_results[5]
+  mse_boot12[j]=(boot1[j]-ols_result[1])^2
+  mse_boot22[j]=(boot2[j]-ols_result[2])^2
+  mse_boot32[j]=(boot3[j]-ols_result[3])^2
+  mse_boot42[j]=(boot4[j]-ols_result[4])^2
+  mse_boot52[j]=(boot5[j]-ols_result[5])^2
+  
+  #Jackknife的估计
+   jack_results <- jackknife_regression(sample_data, n)
+   jack1[j]=jack_results[1]
+   jack2[j]=jack_results[2]
+   jack3[j]=jack_results[3]
+   jack4[j]=jack_results[4]
+   jack5[j]=jack_results[5]
+   mse_jack12[j]=(jack1[j]-ols_result[1])^2
+   mse_jack22[j]=(jack2[j]-ols_result[2])^2
+   mse_jack32[j]=(jack3[j]-ols_result[3])^2
+   mse_jack42[j]=(jack4[j]-ols_result[4])^2
+   mse_jack52[j]=(jack5[j]-ols_result[5])^2
+}
+ #保存参数结果
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Bootstrap",Intercept =mean(boot1),X1=mean(boot2),X2=mean(boot3),X3=mean(boot4,na.rm=TRUE),X4=mean(boot5)))
+ 
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Jackknife",Intercept
+  =mean(jack1),X1=mean(jack2),X2=mean(jack3),X3=mean(jack4,na.rm=TRUE),X4=mean(jack5)))
+ 
+ #Bootstrap的BIAS
+  bias_boot1 <- calculate_bias(mean(boot1), ols_result[1] )
+  bias_boot2<- calculate_bias(mean(boot2), ols_result[2] )
+  bias_boot3 <- calculate_bias(mean(boot3), ols_result[3] )
+  bias_boot4 <- calculate_bias(mean(boot4,na.rm=TRUE), ols_result[4] )
+  bias_boot5 <- calculate_bias(mean(boot5), ols_result[5])
+  bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Bootstrap",  Intercept = bias_boot1, X1 = bias_boot2, X2 = bias_boot3, X3 = bias_boot4, X4 = bias_boot5)) 
+   #Jackknife的偏差
+   bias_jack1 <- calculate_bias(mean(jack1),  ols_result[1])
+   bias_jack2 <- calculate_bias(mean(jack2),  ols_result[2])
+   bias_jack3 <- calculate_bias(mean(jack3),  ols_result[3])
+   bias_jack4 <- calculate_bias(mean(jack4,na.rm=TRUE),  ols_result[4])
+   bias_jack5 <- calculate_bias(mean(jack5),  ols_result[5])
+   bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Jackknife", 
+                                            Intercept = bias_jack1, X1 = bias_jack2 ,X2 = bias_jack3, X3 = bias_jack4, X4 = bias_jack5))
+
+
+#密度图
+results1 <- data.frame(
+  Parameter = rep(c("Intercept"), each = K * 2),
+  Estimate = c(boot1, jack1),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K )
+)
+
+ggplot(results1, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[1], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of intercept,  n=30(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results2 <- data.frame(
+  Parameter = rep(c("x1"), each = K * 2),
+  Estimate = c(boot2, jack2),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results2, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[2], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x1,  n=30(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results3 <- data.frame(
+  Parameter = rep(c("x2"), each = K * 2),
+  Estimate = c(boot3, jack3),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results3, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[3], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x2,  n=30(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results4 <- data.frame(
+  Parameter = rep(c("x3"), each = K * 2),
+  Estimate = c(boot4, jack4),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results4, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[4], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x3,  n=30(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+
+results5 <- data.frame(
+  Parameter = rep(c("x4"), each = K * 2),
+  Estimate = c(boot5, jack5),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results5, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[5], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x4,  n=30(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+```
+
+#样本量为40
+```{r}
+n=40
+boot1=c()
+boot2=c()
+boot3=c()
+boot4=c()
+boot5=c()
+jack1=c()
+jack2=c()
+jack3=c()
+jack4=c()
+jack5=c()
+bias_boot1=c()
+bias_boot2<- c()
+bias_boot3 <- c()
+bias_boot4 <- c()
+bias_boot5=c()
+bias_jack1 <-c()
+bias_jack2 <- c()
+bias_jack3 <- c()
+bias_jack4 <- c()
+bias_jack5 <- c()
+mse_boot13<-c()
+mse_boot23<-c()
+mse_boot33<-c()
+mse_boot43<-c()
+mse_boot53<-c()
+mse_jack13<-c()
+mse_jack23<-c()
+mse_jack33<-c()
+mse_jack43<-c()
+mse_jack53<-c()
+for(j in 1:K){
+  # 从原始数据中随机抽取size个样本
+  sample_data <- data[sample(1:nrow(data), n, replace = TRUE), ]
+  
+  #Bootstrap的估计
+  boot_results <- bootstrap_regression(sample_data, n)
+  boot1[j]=boot_results[1]
+  boot2[j]=boot_results[2]
+  boot3[j]=boot_results[3]
+  boot4[j]=boot_results[4]
+  boot5[j]=boot_results[5]
+  mse_boot13[j]=(boot1[j]-ols_result[1])^2
+  mse_boot23[j]=(boot2[j]-ols_result[2])^2
+  mse_boot33[j]=(boot3[j]-ols_result[3])^2
+  mse_boot43[j]=(boot4[j]-ols_result[4])^2
+  mse_boot53[j]=(boot5[j]-ols_result[5])^2
+  
+  #Jackknife的估计
+   jack_results <- jackknife_regression(sample_data, n)
+   jack1[j]=jack_results[1]
+   jack2[j]=jack_results[2]
+   jack3[j]=jack_results[3]
+   jack4[j]=jack_results[4]
+   jack5[j]=jack_results[5]
+   mse_jack13[j]=(jack1[j]-ols_result[1])^2
+   mse_jack23[j]=(jack2[j]-ols_result[2])^2
+   mse_jack33[j]=(jack3[j]-ols_result[3])^2
+   mse_jack43[j]=(jack4[j]-ols_result[4])^2
+   mse_jack53[j]=(jack5[j]-ols_result[5])^2
+}
+ #保存参数结果
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Bootstrap",Intercept =mean(boot1),X1=mean(boot2),X2=mean(boot3),X3=mean(boot4,na.rm=TRUE),X4=mean(boot5)))
+ 
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Jackknife",Intercept
+  =mean(jack1),X1=mean(jack2),X2=mean(jack3),X3=mean(jack4,na.rm=TRUE),X4=mean(jack5)))
+ 
+ #Bootstrap的BIAS
+  bias_boot1 <- calculate_bias(mean(boot1), ols_result[1] )
+  bias_boot2<- calculate_bias(mean(boot2), ols_result[2] )
+  bias_boot3 <- calculate_bias(mean(boot3), ols_result[3] )
+  bias_boot4 <- calculate_bias(mean(boot4,na.rm=TRUE), ols_result[4] )
+  bias_boot5 <- calculate_bias(mean(boot5), ols_result[5])
+  bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Bootstrap",  Intercept = bias_boot1, X1 = bias_boot2, X2 = bias_boot3, X3 = bias_boot4, X4 = bias_boot5)) 
+   #Jackknife的偏差
+   bias_jack1 <- calculate_bias(mean(jack1),  ols_result[1])
+   bias_jack2 <- calculate_bias(mean(jack2),  ols_result[2])
+   bias_jack3 <- calculate_bias(mean(jack3),  ols_result[3])
+   bias_jack4 <- calculate_bias(mean(jack4,na.rm=TRUE),  ols_result[4])
+   bias_jack5 <- calculate_bias(mean(jack5),  ols_result[5])
+   bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Jackknife", 
+                                            Intercept = bias_jack1, X1 = bias_jack2 ,X2 = bias_jack3, X3 = bias_jack4, X4 = bias_jack5))
+#密度图
+results1 <- data.frame(
+  Parameter = rep(c("Intercept"), each = K * 2),
+  Estimate = c(boot1, jack1),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K )
+)
+
+ggplot(results1, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[1], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of intercept   n=40(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results2 <- data.frame(
+  Parameter = rep(c("x1"), each = K * 2),
+  Estimate = c(boot2, jack2),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results2, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[2], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x1,   n=40(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results3 <- data.frame(
+  Parameter = rep(c("x2"), each = K * 2),
+  Estimate = c(boot3, jack3),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results3, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[3], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x2,   n=40(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results4 <- data.frame(
+  Parameter = rep(c("x3"), each = K * 2),
+  Estimate = c(boot4, jack4),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results4, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[4], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x3,  n=40(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+results5 <- data.frame(
+  Parameter = rep(c("x4"), each = K * 2),
+  Estimate = c(boot5, jack5),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results5, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[5], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x4,  n=40(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+```
+
+#样本量为50
+```{r}
+n=50
+boot1=c()
+boot2=c()
+boot3=c()
+boot4=c()
+boot5=c()
+jack1=c()
+jack2=c()
+jack3=c()
+jack4=c()
+jack5=c()
+bias_boot1 =c()
+bias_boot2<- c()
+bias_boot3 <- c()
+bias_boot4 <- c()
+bias_boot5=c()
+bias_jack1 <-c()
+bias_jack2 <- c()
+bias_jack3 <- c()
+bias_jack4 <- c()
+bias_jack5 <- c()
+mse_boot14<-c()
+mse_boot24<-c()
+mse_boot34<-c()
+mse_boot44<-c()
+mse_boot54<-c()
+mse_jack14<-c()
+mse_jack24<-c()
+mse_jack34<-c()
+mse_jack44<-c()
+mse_jack54<-c()
+for(j in 1:K){
+  # 从原始数据中随机抽取size个样本
+  sample_data <- data[sample(1:nrow(data), n, replace = TRUE), ]
+  
+  #Bootstrap的估计
+  boot_results <- bootstrap_regression(sample_data, n)
+  boot1[j]=boot_results[1]
+  boot2[j]=boot_results[2]
+  boot3[j]=boot_results[3]
+  boot4[j]=boot_results[4]
+  boot5[j]=boot_results[5]
+  mse_boot14[j]=(boot1[j]-ols_result[1])^2
+  mse_boot24[j]=(boot2[j]-ols_result[2])^2
+  mse_boot34[j]=(boot3[j]-ols_result[3])^2
+  mse_boot44[j]=(boot4[j]-ols_result[4])^2
+  mse_boot54[j]=(boot5[j]-ols_result[5])^2
+  
+  #Jackknife的估计
+   jack_results <- jackknife_regression(sample_data, n)
+   jack1[j]=jack_results[1]
+   jack2[j]=jack_results[2]
+   jack3[j]=jack_results[3]
+   jack4[j]=jack_results[4]
+   jack5[j]=jack_results[5]
+   mse_jack14[j]=(jack1[j]-ols_result[1])^2
+   mse_jack24[j]=(jack2[j]-ols_result[2])^2
+   mse_jack34[j]=(jack3[j]-ols_result[3])^2
+   mse_jack44[j]=(jack4[j]-ols_result[4])^2
+   mse_jack54[j]=(jack5[j]-ols_result[5])^2
+}
+ #保存参数结果
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Bootstrap",Intercept =mean(boot1),X1=mean(boot2),X2=mean(boot3),X3=mean(boot4,na.rm=TRUE),X4=mean(boot5)))
+ 
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Jackknife",Intercept
+  =mean(jack1),X1=mean(jack2),X2=mean(jack3),X3=mean(jack4,na.rm=TRUE),X4=mean(jack5)))
+ 
+ #Bootstrap的BIAS
+  bias_boot1 <- calculate_bias(mean(boot1), ols_result[1] )
+  bias_boot2<- calculate_bias(mean(boot2), ols_result[2] )
+  bias_boot3 <- calculate_bias(mean(boot3), ols_result[3] )
+  bias_boot4 <- calculate_bias(mean(boot4,na.rm=TRUE), ols_result[4] )
+  bias_boot5 <- calculate_bias(mean(boot5), ols_result[5])
+  bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Bootstrap",  Intercept = bias_boot1, X1 = bias_boot2, X2 = bias_boot3, X3 = bias_boot4, X4 = bias_boot5)) 
+   #Jackknife的偏差
+   bias_jack1 <- calculate_bias(mean(jack1),  ols_result[1])
+   bias_jack2 <- calculate_bias(mean(jack2),  ols_result[2])
+   bias_jack3 <- calculate_bias(mean(jack3),  ols_result[3])
+   bias_jack4 <- calculate_bias(mean(jack4,na.rm=TRUE),  ols_result[4])
+   bias_jack5 <- calculate_bias(mean(jack5),  ols_result[5])
+   bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Jackknife", 
+                                            Intercept = bias_jack1, X1 = bias_jack2 ,X2 = bias_jack3, X3 = bias_jack4, X4 = bias_jack5))
+
+#密度图
+results1 <- data.frame(
+  Parameter = rep(c("Intercept"), each = K * 2),
+  Estimate = c(boot1, jack1),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K )
+)
+
+ggplot(results1, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[1], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of intercept, n=50(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results2 <- data.frame(
+  Parameter = rep(c("x1"), each = K * 2),
+  Estimate = c(boot2, jack2),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results2, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[2], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x1, n=50(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results3 <- data.frame(
+  Parameter = rep(c("x2"), each = K * 2),
+  Estimate = c(boot3, jack3),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results3, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[3], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x2, n=50(real) ",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results4 <- data.frame(
+  Parameter = rep(c("x3"), each = K * 2),
+  Estimate = c(boot4, jack4),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results4, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[4], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x3, n=50 (real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+results5 <- data.frame(
+  Parameter = rep(c("x4"), each = K * 2),
+  Estimate = c(boot5, jack5),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results5, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[5], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x4,  n=50(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+```
+
+#样本量为62
+```{r}
+n=62
+boot1=c()
+boot2=c()
+boot3=c()
+boot4=c()
+boot5=c()
+jack1=c()
+jack2=c()
+jack3=c()
+jack4=c()
+jack5=c()
+bias_boot1 =c()
+bias_boot2<- c()
+bias_boot3 <- c()
+bias_boot4 <- c()
+bias_boot5=c()
+bias_jack1 <-c()
+bias_jack2 <- c()
+bias_jack3 <- c()
+bias_jack4 <- c()
+bias_jack5 <- c()
+mse_boot15<-c()
+mse_boot25<-c()
+mse_boot35<-c()
+mse_boot45<-c()
+mse_boot55<-c()
+mse_jack15<-c()
+mse_jack25<-c()
+mse_jack35<-c()
+mse_jack45<-c()
+mse_jack55<-c()
+for(j in 1:K){
+  # 从原始数据中随机抽取size个样本
+  sample_data <- data[sample(1:nrow(data), n, replace = TRUE), ]
+  
+  #Bootstrap的估计
+  boot_results <- bootstrap_regression(sample_data, n)
+  boot1[j]=boot_results[1]
+  boot2[j]=boot_results[2]
+  boot3[j]=boot_results[3]
+  boot4[j]=boot_results[4]
+  boot5[j]=boot_results[5]
+  mse_boot15[j]=(boot1[j]-ols_result[1])^2
+  mse_boot25[j]=(boot2[j]-ols_result[2])^2
+  mse_boot35[j]=(boot3[j]-ols_result[3])^2
+  mse_boot45[j]=(boot4[j]-ols_result[4])^2
+  mse_boot55[j]=(boot5[j]-ols_result[5])^2
+  
+  #Jackknife的估计
+   jack_results <- jackknife_regression(sample_data, n)
+   jack1[j]=jack_results[1]
+   jack2[j]=jack_results[2]
+   jack3[j]=jack_results[3]
+   jack4[j]=jack_results[4]
+   jack5[j]=jack_results[5]
+   mse_jack15[j]=(jack1[j]-ols_result[1])^2
+   mse_jack25[j]=(jack2[j]-ols_result[2])^2
+   mse_jack35[j]=(jack3[j]-ols_result[3])^2
+   mse_jack45[j]=(jack4[j]-ols_result[4])^2
+   mse_jack55[j]=(jack5[j]-ols_result[5])^2
+}
+ #保存参数结果
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Bootstrap",Intercept =mean(boot1),X1=mean(boot2),X2=mean(boot3),X3=mean(boot4,na.rm=TRUE),X4=mean(boot5)))
+ 
+ results <- rbind(results, data.frame(SampleSize = n, Method = "Jackknife",Intercept
+  =mean(jack1),X1=mean(jack2),X2=mean(jack3),X3=mean(jack4,na.rm=TRUE),X4=mean(jack5)))
+ 
+ #Bootstrap的BIAS
+  bias_boot1 <- calculate_bias(mean(boot1), ols_result[1] )
+  bias_boot2<- calculate_bias(mean(boot2), ols_result[2] )
+  bias_boot3 <- calculate_bias(mean(boot3), ols_result[3] )
+  bias_boot4 <- calculate_bias(mean(boot4,na.rm=TRUE), ols_result[4] )
+  bias_boot5 <- calculate_bias(mean(boot5), ols_result[5])
+  bias_data <- rbind(bias_data, data.frame(SampleSize = n, Method = "Bootstrap",  Intercept = bias_boot1, X1 = bias_boot2, X2 = bias_boot3, X3 = bias_boot4, X4 = bias_boot5)) 
+   #Jackknife的偏差
+   bias_jack1 <- calculate_bias(mean(jack1),  ols_result[1])
+   bias_jack2 <- calculate_bias(mean(jack2),  ols_result[2])
+   bias_jack3 <- calculate_bias(mean(jack3),  ols_result[3])
+   bias_jack4 <- calculate_bias(mean(jack4,na.rm=TRUE),  ols_result[4])
+   bias_jack5 <- calculate_bias(mean(jack5),  ols_result[5])
+   bias_data <- rbind(bias_data, data.frame(SampleSize = 62, Method = "Jackknife", 
+                                            Intercept = bias_jack1, X1 = bias_jack2 ,X2 = bias_jack3, X3 = bias_jack4, X4 = bias_jack5))
+
+
+#密度图
+results1 <- data.frame(
+  Parameter = rep(c("Intercept"), each = K * 2),
+  Estimate = c(boot1, jack1),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K )
+)
+
+ggplot(results1, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[1], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of intercept  n=62(real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results2 <- data.frame(
+  Parameter = rep(c("x1"), each = K * 2),
+  Estimate = c(boot2, jack2),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results2, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[2], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x1 n=62 (real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results3 <- data.frame(
+  Parameter = rep(c("x2"), each = K * 2),
+  Estimate = c(boot3, jack3),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results3, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[3], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x2  n=62  (real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+
+results4 <- data.frame(
+  Parameter = rep(c("x3"), each = K * 2),
+  Estimate = c(boot4, jack4),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results4, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[4], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x3  n=62  (real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+results5 <- data.frame(
+  Parameter = rep(c("x4"), each = K * 2),
+  Estimate = c(boot5, jack5),
+  Method = rep(c("Bootstrap", "Jackknife"),times = K)
+)
+ggplot(results5, aes(x = Estimate, fill = Method)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = ols_result[5], linetype = "solid", color = "red", size = 1) +
+  facet_wrap(~ Parameter, scales = "free") +
+  labs(title = "Density Plots of x4,  n=62 (real)",
+       x = "Estimate",
+       y = "Density") +
+  theme(axis.text = element_text(size = 12),plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))+  # 标题居中并加粗
+  theme_minimal()+
+scale_fill_manual(values = c("Bootstrap"="#42BCB2", "Jackknife"="#235689"))
+```
+表格
+```{r}
+results <- rbind(results, data.frame(SampleSize = 62, Method = "Least Squares",Intercept
+  =ols_result[1],X1=ols_result[2],X2=ols_result[3],X3=ols_result[4],X4=ols_result[5]))
+ print(results)
+```
+#偏差图
+```{r}
+library(grid)
+# 将数据转换为长格式，方便绘图
+bias_data_long <- pivot_longer(bias_data, cols = c("Intercept", "X1", "X2", "X3", "X4"), 
+                               names_to = "Variable", values_to = "Bias")
+
+# 绘制偏差图
+
+ggplot(bias_data_long, aes(x = SampleSize, y = Bias, color = Method, group = interaction(Method, Variable))) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ Variable, scales = "free_y",ncol = 5) +
+  labs(title = "Bias of Regression Coefficients (Bootstrap vs Jackknife)  (real)", 
+       x = "Sample Size", 
+       y = "Bias") +
+  theme_minimal() +
+  theme(legend.position = "top",panel.spacing = unit(1, "cm")  ) +
+  scale_color_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689"))
+
+ 
+```
+#MSE图
+```{r}
+# 计算Bootstrap和Jackknife的MSE
+mse_boot1 <- c(
+  n_20 = mean(mse_boot11),
+  n_30= mean(mse_boot12),
+  n_40 = mean(mse_boot13),
+  n_50 = mean(mse_boot14,na.rm=TRUE),
+  n_62 = mean(mse_boot15)
+)
+
+mse_jack1 <- c(
+  n_20 = mean(mse_jack11),
+  n_30= mean(mse_jack12),
+  n_40 = mean(mse_jack13),
+  n_50 = mean(mse_jack14,na.rm=TRUE),
+  n_62 = mean(mse_jack15)
+)
+# 创建数据框以用于绘图
+mse_data1 <- data.frame(
+  size = rep(c("n_20", "n_30", "n_40", "n_50", "n_62"), 2),
+  MSE = c(mean(mse_boot1), mean(mse_jack1)),
+  Method = rep(c("Bootstrap", "Jackknife"))
+)
+
+# 绘制MSE图
+ggplot(mse_data1, aes(x = size, y = MSE, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "MSE of Intercept by Method (real)",
+       x = "Size",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689")) +
+  theme(legend.position = "bottom")
+
+
+
+# 计算Bootstrap和Jackknife的MSE
+mse_boot2 <- c(
+  n_20 = mean(mse_boot21),
+  n_30= mean(mse_boot22),
+  n_40 = mean(mse_boot23),
+  n_50 = mean(mse_boot24,na.rm=TRUE),
+  n_62 = mean(mse_boot25)
+)
+
+mse_jack2 <- c(
+  n_20 = mean(mse_jack21),
+  n_30= mean(mse_jack22),
+  n_40 = mean(mse_jack23),
+  n_50 = mean(mse_jack24,na.rm=TRUE),
+  n_62 = mean(mse_jack25)
+)
+
+# 创建数据框以用于绘图
+mse_data2 <- data.frame(
+  size = rep(c("n_20", "n_30", "n_40", "n_50", "n_62"), 2),
+  MSE = c(mean(mse_boot2), mean(mse_jack2)),
+  Method = rep(c("Bootstrap", "Jackknife"))
+)
+
+# 绘制MSE图
+ggplot(mse_data2, aes(x = size, y = MSE, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "MSE of X1 by Method (real)",
+       x = "Size",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689")) +
+  theme(legend.position = "bottom")
+
+mse_boot3 <- c(
+  n_20 = mean(mse_boot31),
+  n_30= mean(mse_boot32),
+  n_40 = mean(mse_boot33),
+  n_50 = mean(mse_boot34,na.rm=TRUE),
+  n_62 = mean(mse_boot35)
+)
+
+mse_jack3 <- c(
+  n_20 = mean(mse_jack31),
+  n_30= mean(mse_jack32),
+  n_40 = mean(mse_jack33),
+  n_50 = mean(mse_jack34,na.rm=TRUE),
+  n_62 = mean(mse_jack35)
+)
+
+# 创建数据框以用于绘图
+mse_data3 <- data.frame(
+  size = rep(c("n_20", "n_30", "n_40", "n_50", "n_62"), 2),
+  MSE = c(mean(mse_boot3), mean(mse_jack3)),
+  Method = rep(c("Bootstrap", "Jackknife"))
+)
+
+# 绘制MSE图
+ggplot(mse_data3, aes(x = size, y = MSE, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "MSE of X2 by Method (real)",
+       x = "Size",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689")) +
+  theme(legend.position = "bottom")
+
+mse_boot4 <- c(
+  n_20 = mean(mse_boot41),
+  n_30= mean(mse_boot42),
+  n_40 = mean(mse_boot43),
+  n_50 = mean(mse_boot44,na.rm=TRUE),
+  n_62 = mean(mse_boot45)
+)
+
+mse_jack4 <- c(
+  n_20 = mean(mse_jack41),
+  n_30= mean(mse_jack42),
+  n_40 = mean(mse_jack43),
+  n_50 = mean(mse_jack44,na.rm=TRUE),
+  n_62 = mean(mse_jack45)
+)
+
+# 创建数据框以用于绘图
+mse_data4 <- data.frame(
+  size = rep(c("n_20", "n_30", "n_40", "n_50", "n_62"), 2),
+  MSE = c(mean(mse_boot4,na.rm = TRUE), mean(mse_jack4,na.rm = TRUE)),
+  Method = rep(c("Bootstrap", "Jackknife"))
+)
+
+# 绘制MSE图
+ggplot(mse_data4, aes(x = size, y = MSE, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "MSE of X3 by Method (real)",
+       x = "Size",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689")) +
+  theme(legend.position = "bottom")
+
+mse_boot5 <- c(
+  n_20 = mean(mse_boot51),
+  n_30= mean(mse_boot52),
+  n_40 = mean(mse_boot53),
+  n_50 = mean(mse_boot54,na.rm=TRUE),
+  n_62 = mean(mse_boot55)
+)
+
+mse_jack5 <- c(
+  n_20 = mean(mse_jack51),
+  n_30= mean(mse_jack52),
+  n_40 = mean(mse_jack53),
+  n_50 = mean(mse_jack54,na.rm=TRUE),
+  n_62 = mean(mse_jack55)
+)
+
+# 创建数据框以用于绘图
+mse_data5 <- data.frame(
+  size = rep(c("n_20", "n_30", "n_40", "n_50", "n_62"), 2),
+  MSE = c(mean(mse_boot5), mean(mse_jack5)),
+  Method = rep(c("Bootstrap", "Jackknife"))
+)
+
+# 绘制MSE图
+ggplot(mse_data5, aes(x = size, y = MSE, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "MSE of X4 by Method (real)",
+       x = "Size",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bootstrap" = "#42BCB2", "Jackknife" = "#235689")) +
+  theme(legend.position = "bottom")
+```

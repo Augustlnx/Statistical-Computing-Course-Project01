@@ -1,0 +1,419 @@
+---
+title: "统计计算Final task1"
+format: html
+editor: visual
+theme: flatly
+toc: true
+toc-title: "目录"
+toc-depth: 3
+---
+
+# 一、线性判别分析
+
+为了实现对Bootstrap和Jackknife的估计的比较，我们可以通过以下步骤来进行线性判别分析（LDA）模型的实验。
+
+### Step 1: 数据准备
+
+我们首先需要生成模拟数据，符合单变量等方差正态分布，并随机为每个样本分配类别标签。
+
+```{r}
+set.seed(123)  # 设置随机种子以确保结果可重复
+
+# 生成基础数据：10个特征，30个样本
+N <- 30  # 样本量
+p <- 10  # 特征数
+
+# 生成特征：服从N(0, 1)的正态分布
+X <- matrix(rnorm(N * p), nrow = N, ncol = p)
+
+# 随机生成目标变量：0或1
+y <- sample(0:1, N, replace = TRUE)
+
+# 将数据整理成数据框
+data <- data.frame(X)
+data$y <- as.factor(y)
+```
+
+### Step 2: 构建线性判别分析模型
+
+使用`MASS`包中的`lda`函数来构建线性判别分析（LDA）模型。
+
+```{r}
+library(MASS)
+# 训练LDA模型
+lda_model <- lda(y ~ ., data = data)
+```
+
+### Step 3: 重抽样方法及流程
+
+#### 重新代入法（Re-substitution method）
+
+直接使用原数据集对模型进行评估。
+
+```{r}
+# 预测训练集上的分类
+pred_train <- predict(lda_model)$class
+# 计算正确率
+accuracy_train <- mean(pred_train == data$y)
+accuracy_train
+```
+
+#### Jackknife（N折交叉验证）
+
+```{r}
+# Jackknife 交叉验证
+jackknife_accuracy <- sapply(1:N, function(i) {
+  # 留出第i个样本作为测试集
+  test_data <- data[i, , drop = FALSE]
+  train_data <- data[-i, ]
+  
+  # 训练LDA模型
+  lda_model <- lda(y ~ ., data = train_data)
+  
+  # 预测并计算正确率
+  pred_test <- predict(lda_model, newdata = test_data)$class
+  return(mean(pred_test == test_data$y))
+})
+
+# 计算Jackknife的平均正确率
+mean(jackknife_accuracy)
+```
+
+#### Bootstrap（随机自举法）
+
+Bootstrap方法通过对样本进行重抽样来生成多个训练集，并计算每个模型的分类准确率。
+
+```{r}
+# Bootstrap方法
+m <- 200  # 重抽样次数
+bootstrap_accuracy <- numeric(m)
+
+for (m in 1:M) {
+  # 随机抽样N个样本（可以重复抽样）
+  bootstrap_sample_index <- sample(1:N, N, replace = TRUE)
+  bootstrap_sample <- data[bootstrap_sample_index, ]
+  
+  # 找到没有被抽到的样本（袋外数据）
+  out_of_bag_index <- setdiff(1:N, bootstrap_sample_index)
+  out_of_bag <- data[out_of_bag_index, ]
+  
+  # 训练LDA模型
+  lda_model <- lda(y ~ ., data = bootstrap_sample)
+  
+  # 使用袋外数据作为验证集进行预测
+  pred_oob <- predict(lda_model, newdata = out_of_bag)$class
+  
+  # 计算袋外数据的正确率
+  bootstrap_accuracy[m] <- mean(pred_oob == out_of_bag$y)
+}
+
+# 计算Bootstrap的平均正确率
+mean(bootstrap_accuracy)
+
+```
+
+### Step 4: 随机模拟验证
+
+我们重复模拟1000次，每次重新生成数据，并对模型进行评估。
+
+```{r}
+simulate_accuracy <- function(N = 30, p = 10) {
+  # 重新生成数据
+  X <- matrix(rnorm(N * p), nrow = N, ncol = p)
+  y <- sample(0:1, N, replace = TRUE)
+  data <- data.frame(X)
+  data$y <- as.factor(y)
+  
+  # 构建LDA模型
+  lda_model <- lda(y ~ ., data = data)
+  # 计算正确率
+  accuracy_train <- mean(predict(lda_model)$class == data$y)
+  
+  # 使用Jackknife方法
+  jackknife_accuracy <- numeric(N)
+  
+  for (i in 1:N) {
+    test_data <- data[i, , drop = FALSE]
+    train_data <- data[-i, ]
+    lda_model <- lda(y ~ ., data = train_data)
+    pred_test <- predict(lda_model, newdata = test_data)$class
+    accuracy_test <- mean(pred_test == test_data$y)
+    jackknife_accuracy[i] <- accuracy_test
+  }
+  jackknife_accuracy_bias <- mean(jackknife_accuracy) - accuracy_train
+
+  # 使用Bootstrap方法
+  M <- 200
+  bootstrap_accuracy <- numeric(m)
+  
+  for (m in 1:M) {
+    bootstrap_sample_index <- sample(1:N, N, replace = TRUE)
+    bootstrap_sample <- data[bootstrap_sample_index, ]
+    out_of_bag_index <- setdiff(1:N, bootstrap_sample_index)
+    out_of_bag <- data[out_of_bag_index, ]
+    
+    lda_model <- lda(y ~ ., data = bootstrap_sample)
+    pred_oob <- predict(lda_model, newdata = out_of_bag)$class
+    accuracy_oob <- mean(pred_oob == out_of_bag$y)
+    bootstrap_accuracy[m] <- accuracy_oob
+  }
+  bootstrap_accuracy_bias <- mean(bootstrap_accuracy) - accuracy_train
+  
+  # 返回两种方法的准确率
+  return(list(jackknife_accuracy = jackknife_accuracy, bootstrap_accuracy = bootstrap_accuracy, train_accuracy = accuracy_train, jackknife_accuracy_bias = jackknife_accuracy_bias, bootstrap_accuracy_bias = bootstrap_accuracy_bias))
+}
+```
+
+```{r}
+# 进行1000次模拟
+K <- 100
+results <- replicate(K, simulate_accuracy(), simplify = FALSE)
+
+# 提取Jackknife和Bootstrap的准确率结果
+jackknife_results <- unlist(lapply(results, function(x) mean(x$jackknife_accuracy)))
+bootstrap_results <- unlist(lapply(results, function(x) mean(x$bootstrap_accuracy)))
+Resubstitution_results <- unlist(lapply(results, function(x) x$train_accuracy))
+jackknife_bias <- unlist(lapply(results, function(x) x$jackknife_accuracy_bias))
+bootstrap_bias <- unlist(lapply(results, function(x) x$bootstrap_accuracy_bias))
+
+
+# 将结果转化为数据框，便于ggplot绘图
+accuracy_data <- data.frame(
+  accuracy = c(jackknife_results, bootstrap_results, Resubstitution_results),
+  method = rep(c("Jackknife", "Bootstrap", "Resubstitution"), each = K)
+)
+
+# 绘制密度曲线
+ggplot(accuracy_data, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of Accuracy Estimates for Jackknife and Bootstrap",
+       x = "Accuracy",
+       y = "Density") +
+  theme_minimal() +
+  #添加0.5的红色参考线
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "red") +
+  scale_fill_manual(values = c("#42BCB2", "#235689","#D3D5D4"))
+```
+
+偏差的密度图
+
+```{r}
+bias_data <- data.frame(
+  bias = c(jackknife_bias, bootstrap_bias),
+  method = rep(c("Jackknife", "Bootstrap"), each = K)
+)
+
+ggplot(bias_data, aes(x = bias, fill = method)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of Bias Estimates for Jackknife and Bootstrap",
+       x = "Bias",
+       y = "Density") +
+  #添加真实偏差的红色参考线
+  geom_vline(xintercept = mean(0.5-Resubstitution_results), linetype = "dashed", color = "red") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689"))
+```
+
+### Step 5: 模拟结果
+
+我们可以输出模拟的结果，并计算两种方法的准确率均值。
+
+```{r}
+cat("Jackknife method mean accuracy:", mean(jackknife_results), "\n")
+cat("Bootstrap method mean accuracy:", mean(bootstrap_results), "\n")
+cat("Resubstitution method mean accuracy:", mean(Resubstitution_results), "\n")
+#方差
+cat("Jackknife method variance accuracy:", var(jackknife_results), "\n")
+cat("Bootstrap method variance accuracy:", var(bootstrap_results), "\n")
+#偏差
+cat("Jackknife method bias accuracy:", mean(jackknife_bias), "\n")
+cat("Bootstrap method bias accuracy:",mean(bootstrap_bias), "\n")
+cat("true bias accuracy:", mean(Resubstitution_results)-0.5, "\n")
+
+
+```
+
+### 预期结果与结论
+
+-   **正确率**：根据实验设计，Bootstrap方法通常会比Jackknife方法提供更精确的估计，因为Bootstrap可以通过多次随机抽样获得更多的训练样本，从而更好地反映真实数据的变动性。
+
+通过这种方法，你可以对Bootstrap和Jackknife方法在小样本条件下进行比较，进而得出哪个方法在估计分类模型正确性时更为精确的结论。
+
+# 二、随样本量变动
+
+```{r}
+simulate_accuracy <- function(N = 30, p = 10) {
+  # 重新生成数据
+  X <- matrix(rnorm(N * p), nrow = N, ncol = p)
+  y <- sample(0:1, N, replace = TRUE)
+  data <- data.frame(X)
+  data$y <- as.factor(y)
+  
+  # 构建LDA模型
+  lda_model <- lda(y ~ ., data = data)
+  # 计算正确率
+  accuracy_train <- mean(predict(lda_model)$class == data$y)
+  
+  # 使用Jackknife方法
+  jackknife_accuracy <- numeric(N)
+  
+  for (i in 1:N) {
+    test_data <- data[i, , drop = FALSE]
+    train_data <- data[-i, ]
+    lda_model <- lda(y ~ ., data = train_data)
+    pred_test <- predict(lda_model, newdata = test_data)$class
+    accuracy_test <- mean(pred_test == test_data$y)
+    jackknife_accuracy[i] <- accuracy_test
+  }
+  jackknife_accuracy_bias <- mean(jackknife_accuracy) - accuracy_train
+
+  # 使用Bootstrap方法
+  M <- 200
+  bootstrap_accuracy <- numeric(m)
+  
+  for (m in 1:M) {
+    bootstrap_sample_index <- sample(1:N, N, replace = TRUE)
+    bootstrap_sample <- data[bootstrap_sample_index, ]
+    out_of_bag_index <- setdiff(1:N, bootstrap_sample_index)
+    out_of_bag <- data[out_of_bag_index, ]
+    
+    lda_model <- lda(y ~ ., data = bootstrap_sample)
+    pred_oob <- predict(lda_model, newdata = out_of_bag)$class
+    accuracy_oob <- mean(pred_oob == out_of_bag$y)
+    bootstrap_accuracy[m] <- accuracy_oob
+  }
+  bootstrap_accuracy_bias <- mean(bootstrap_accuracy) - accuracy_train
+  
+  # 返回两种方法的准确率
+  return(list(jackknife_accuracy = jackknife_accuracy, bootstrap_accuracy = bootstrap_accuracy, train_accuracy = accuracy_train, jackknife_accuracy_bias = jackknife_accuracy_bias, bootstrap_accuracy_bias = bootstrap_accuracy_bias))
+}
+```
+
+```{r}
+n_values <- c(40, 60, 80, 100, 120)
+jack_estimate <- numeric(length(n_values))
+boot_estimate <- numeric(length(n_values))
+res_estimate <- numeric(length(n_values))
+jack_mse <- numeric(length(n_values))
+boot_mse <- numeric(length(n_values))
+res_mse <- numeric(length(n_values))
+i=0
+for (n in n_values){
+  i <- i+1
+  print(n)
+# 进行1000次模拟
+K <- 100
+results <- replicate(K, simulate_accuracy(N=n), simplify = FALSE)
+# 提取Jackknife和Bootstrap的准确率结果
+jackknife_results <- unlist(lapply(results, function(x) mean(x$jackknife_accuracy)))
+bootstrap_results <- unlist(lapply(results, function(x) mean(x$bootstrap_accuracy)))
+Resubstitution_results <- unlist(lapply(results, function(x) x$train_accuracy))
+jack_estimate[i] <- mean(jackknife_results)-0.5
+boot_estimate[i] <- mean(bootstrap_results)-0.5
+res_estimate[i] <- mean(Resubstitution_results)-0.5
+jack_mse[i] <- mean((jackknife_results-0.5)^2)
+boot_mse[i] <- mean((bootstrap_results-0.5)^2)
+res_mse[i] <- mean((Resubstitution_results-0.5)^2)
+# print(res_mse[i])
+}
+
+```
+偏差线图：
+
+```{r}
+datanpa <- data.frame(
+  n = n_values,
+  res_estimate = res_estimate,
+  bootstrap_estimate = boot_estimate,
+  jackknife_estimate = jack_estimate
+)
+# 设置颜色
+colors <- c("Residual" = "#D3D5D4",  # 灰色
+            "Jackknife" = "#1C3C63",  # 蓝色
+            "Bootstrap" = "#93C8C0")  # 绿色
+
+
+# 请告诉正确的上色方法完整的画图方式
+ggplot(datanpa, aes(x = n)) +
+  geom_line(aes(y = bootstrap_estimate, color = "Bootstrap"), size = 1) +
+  geom_line(aes(y = jackknife_estimate, color = "Jackknife"), size = 1) +
+  #geom_line(aes(y = res_estimate, color = "Resubstitution"), size = 1) +
+  geom_point(aes(y = bootstrap_estimate, color = "Bootstrap"), size = 3) +
+  geom_point(aes(y = jackknife_estimate, color = "Jackknife"), size = 3) +
+  #geom_point(aes(y = res_estimate, color = "Resubstitution"), size = 3) +
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed", size = 1) +
+  # 使用annotate()来添加文本标注
+  # annotate("text", x = max(datanpa$n) + 10, y = 0, label = "True value: 0.5", hjust = 0) +
+  labs(title = "Bootstrap和Jackknife估计偏差随样本量变化 (B=200) ",
+       x = "Sample Size (n)",
+       y = "Bias",
+       color = "Method") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_color_manual(values = colors)
+
+
+```
+
+
+mse柱状图
+
+```{r}
+library(plotly)
+
+# 创建数据框dat
+dat <- data.frame(
+  n = rep(n_values, times = 3),  # 每个样本量重复3次
+  method = rep(c("Residual MSE", "Jackknife MSE", "Bootstrap MSE"), each = length(n_values)),  # 定义方法
+  mse = c(res_mse, jack_mse, boot_mse)  # 合并三种方法的MSE值
+)
+
+# 检查数据框
+print(dat)
+
+# 设置颜色
+colors <- c("Residual MSE" = "#D3D5D4",  # 灰色
+            "Jackknife MSE" = "#1C3C63",  # 蓝色
+            "Bootstrap MSE" = "#93C8C0")  # 绿色
+
+# 绘制分组条形图，并添加美化元素
+library(plotly)
+
+plot_ly(dat,
+        x = ~n, color = ~method, y = ~mse,
+        colors = colors,
+        type = "bar", barmode = "group",
+        marker = list(line = list(color = "black", width = 1.5)),
+        #text = ~paste0("样本量：", n, "<br>", "MSE：", round(mse, 2)),
+        hoverinfo = "text"
+) %>%
+  layout(
+    title = "Residual, Bootstrap和Jackknife的MSE比较（B=200）",
+    xaxis = list(
+      title = "样本量",
+      tickvals = n_values,
+      ticktext = paste0(n_values, "个样本")
+    ),
+    yaxis = list(
+      title = "MSE",
+      tickformat = ".2f"
+    ),
+    legend = list(
+      title = "方法",
+      x = 0.85,  # 调整图例位置
+      y = 0.95,
+      bgcolor = "rgba(255, 255, 255, 0.8)",  # 图例背景色
+      bordercolor = "black",
+      borderwidth = 1
+    ),
+    bargap = 0.15,  # 条形之间的间隔
+    bargroupgap = 0.1,  # 组之间的间隔
+    plot_bgcolor = "white",  # 图表背景色
+    paper_bgcolor = "white",  # 页面背景色
+    margin = list(l = 50, r = 50, t = 70, b = 50)  # 图表边距
+  ) %>%
+  config(displayModeBar = FALSE)
+
+```
+
+

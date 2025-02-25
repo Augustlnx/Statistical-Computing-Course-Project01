@@ -1,0 +1,588 @@
+---
+title: "Median Estimation for Bootstrap and Jackknife"
+author: "Group"
+date: "`r Sys.Date()`"
+header-includes:  
+  - \usepackage{ctex}
+  - \usepackage{indentfirst}  # 确保首段缩进
+  - \usepackage{algpseudocode}
+  - \usepackage[linesnumbered,ruled]{algorithm2e}
+output:  
+  pdf_document:  
+    latex_engine: xelatex
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 一 .简单数据集
+
+## 1.1 数据集{1,2,3,4,5}
+
+```{r label='1.1',echo=TRUE}
+set.seed(42)
+data <- c(1, 2, 3, 4, 5)
+n <- 5
+B <- 100
+K <- 1000
+
+# 初始化向量
+boot_medians <- NULL
+boot_median_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_medianB <- NULL
+
+for (k in 1:K) { #重复实验
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("中位数真值是3\n")
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+```
+
+## 1.2 数据集{1,2,3,4,5,20}
+
+```{r label='1.2',echo=TRUE}
+set.seed(42)
+data <- c(1, 2, 3, 4, 5, 20)
+n <- 6
+B <- 100
+K <- 1000
+
+# 初始化向量
+boot_medians <- NULL
+boot_medians_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_medianB <- NULL
+
+for (k in 1:K) { #重复实验
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("中位数真值是3.5\n")
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+```
+# 二.标准正态分布（薄尾分布）
+
+## 2.1 样本量为50个
+
+```{r label='2.1',echo=TRUE}
+library(ggplot2)
+set.seed(42)
+n <- 50
+K <- 1000 #模拟实验次数
+B <- 200 #Bootstrap重抽样次数
+# 初始化向量
+boot_medians <- NULL
+boot_median_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_median_B <- NULL
+
+for (k in 1:K) { #重复实验
+  # 生成标准正态分布的随机数
+  data <- rnorm(n)
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+
+
+data_50 <- data.frame(
+  accuracy = c(boot_medians, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+data_50B <- data.frame(
+  accuracy = c(boot_median_B, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+
+# 使用ggplot2绘制密度图，并添加红色垂直线
+p11 <- ggplot(data_50, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "公平抽样（B=50）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+p12 <- ggplot(data_50B, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "不公平抽样（B=200）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+library(gridExtra)
+grid.arrange(p11, p12, ncol = 2, top = "来自N(0,1)的50个样本中位数估计值的密度分布图")
+#ggsave("p1.png", grid.arrange(p11, p12, ncol = 2, top = "来自N(0,1)的50个样本中位数估计值的密度分布图"), width = 10, height = 6, dpi = 300)
+```
+
+
+## 2.2 随机抽样49个+一个极端值(2)
+
+```{r label='2.2',echo=TRUE}
+set.seed(42)
+n <- 49
+K <- 1000 #模拟实验次数
+B <- 200 #Bootstrap重抽样次数
+# 初始化向量
+boot_medians <- NULL
+boot_median_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_median_B <- NULL
+
+for (k in 1:K) { #重复实验
+  # 生成标准正态分布的随机数
+  data <- c(rnorm(n),3)
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+
+data_50 <- data.frame(
+  accuracy = c(boot_medians, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+data_50B <- data.frame(
+  accuracy = c(boot_median_B, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+
+# 使用ggplot2绘制密度图，并添加红色垂直线
+p13 <- ggplot(data_50, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "公平抽样（B=50）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+p14 <- ggplot(data_50B, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "不公平抽样（B=200）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+library(gridExtra)
+grid.arrange(p13, p14, ncol = 2, top = "来自N(0,1)的49个样本+'3'的中位数估计值的密度分布图")
+#ggsave("p2.png", grid.arrange(p13, p14, ncol = 2, top = "来自N(0,1)的49个样本+'3'的中位数估计值的密度分布图"), width = 10, height = 6, dpi = 300)
+```
+
+# 三 .帕雷托分布（厚尾分布）
+
+## 3.1 样本量为50个
+
+```{r label='3.1',echo=TRUE}
+#install.packages("VGAM")
+library(VGAM)
+library(ggplot2)
+set.seed(42)
+alpha <- 2  # 形状参数
+xm <- 1     # 尺度参数，帕累托分布的最小值
+n <- 50
+K <- 1000 #模拟实验次数
+B <- 200 #Bootstrap重抽样次数
+
+true_median <- median(rpareto(10000, scale = alpha, shape = xm))
+
+# 初始化向量
+boot_medians <- NULL
+boot_median_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_median_B <- NULL
+
+for (k in 1:K) { #重复实验
+  # 生成一个服从帕累托分布的样本，样本大小为n
+  data <- rpareto(n, scale = alpha, shape = xm)
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("中位数真值是",true_median,"\n")
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+
+data_50 <- data.frame(
+  accuracy = c(boot_medians, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+data_50B <- data.frame(
+  accuracy = c(boot_median_B, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+
+# 使用ggplot2绘制密度图，并添加红色垂直线
+p21 <- ggplot(data_50, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = true_median, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "公平抽样（B=50）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+p22 <- ggplot(data_50B, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = true_median, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "不公平抽样（B=200）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+library(gridExtra)
+grid.arrange(p21, p22, ncol = 2, top = "来自Pa(2,1)的50个样本的中位数估计值的密度分布图")
+#ggsave("p3.png", grid.arrange(p21, p22, ncol = 2, top = "来自Pa(2,1)的50个样本的中位数估计值的密度分布图"), width = 10, height = 6, dpi = 300)
+```
+Jackknife效果差于公平抽样Bootstrap效果差于非公平抽样效果
+
+## 3.2 随机抽样49个+极端值(500)
+
+```{r label='3.2',echo=TRUE}
+library(ggplot2)
+library(VGAM)
+set.seed(42)
+alpha <- 2  # 形状参数
+xm <- 1     # 尺度参数，帕累托分布的最小值
+n <- 49
+K <- 1000 #模拟实验次数
+B <- 200 #Bootstrap重抽样次数
+
+true_median <- median(rpareto(10000, scale = alpha, shape = xm))
+
+# 初始化向量
+boot_medians <- NULL
+boot_median_B <- NULL
+jack_medians <- NULL
+
+boot_median <- NULL
+jack_median <- NULL
+boot_median_B <- NULL
+
+for (k in 1:K) { #重复实验
+  # 生成一个服从帕累托分布的样本，样本大小为n
+  data <- c(rpareto(n, scale = alpha, shape = xm),300)
+  # 初始化保存Bootstrap和Jackknife中位数的向量
+  boot_medians_n <- numeric(n)
+  boot_medians_B <- numeric(n)
+  jack_medians_n <- numeric(n)
+  
+  #Jackknife方法
+  for (i in 1:n) {
+    jack_data <- data[-i]
+    jack_medians_n[i] <- median(jack_data)
+  }
+  
+  # Bootstrap方法(公平抽样)
+  for (i in 1:n) {
+    index <- sample(1:n, size = n - 1, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_n[i] <- median(boot_data)
+  }
+  
+  # Bootstrap方法(非公平抽样)
+  for (i in 1:B) {
+    index <- sample(1:n, size = n, replace = TRUE)
+    boot_data <- data[index]
+    boot_medians_B[i] <- median(boot_data)
+  }
+  
+  # 计算中位数
+  boot_medians[k] <- median(boot_medians_n)
+  boot_median_B[k] <- median(boot_medians_B)
+  jack_medians[k] <- median(jack_medians_n)
+  
+}
+
+boot_median <- median(boot_medians)
+boot_medianB <- median(boot_median_B)
+jack_median <- median(jack_medians)
+
+cat("中位数真值是",true_median,"\n")
+cat("Jackknife的估计值是",jack_median,"\n")
+cat("Bootstrap的估计值(公平抽样)是",boot_median,"\n")
+cat("Bootstrap的估计值(非公平抽样)是",boot_medianB,"\n")
+cat("Jackknife的估计方差是",var(jack_medians),"\n")
+cat("Bootstrap的估计方差(公平抽样)是",var(boot_medians),"\n")
+cat("Bootstrap的估计方差(非公平抽样)是",var(boot_median_B),"\n")
+
+data_50 <- data.frame(
+  accuracy = c(boot_medians, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+data_50B <- data.frame(
+  accuracy = c(boot_median_B, jack_medians),
+  method = factor(c(rep("Bootstrap", length(boot_medians)), rep("Jackknife", length(jack_medians))))
+)
+
+# 使用ggplot2绘制密度图，并添加红色垂直线
+p23 <- ggplot(data_50, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = true_median, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "公平抽样（B=50）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+p24 <- ggplot(data_50B, aes(x = accuracy, fill = method)) +
+  geom_density(alpha = 0.5, adjust = 1) + # adjust参数用于控制曲线的平滑度
+  geom_vline(xintercept = true_median, color = "red", linetype = "solid", size = 1) + # 添加红色垂直线
+  labs(
+    title = "不公平抽样（B=200）",
+    x = "中位数",
+    y = "密度",
+    fill = "方法" # 添加图例标签
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#42BCB2", "#235689")) + # 手动设置填充颜色
+  theme(legend.title = element_blank() )
+
+library(gridExtra)
+grid.arrange(p23, p24, ncol = 2, top = "来自Pa(2,1)的49个样本+'300'的中位数估计值的密度分布图")
+#ggsave("p4.png", grid.arrange(p23, p24, ncol = 2, top = "来自Pa(2,1)的49个样本+'300'的中位数估计值的密度分布图"), width = 10, height = 6, dpi = 300)
+```
+
+
